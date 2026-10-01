@@ -19,3 +19,34 @@ Do not silently make methodological decisions about exclusions, missing values, 
 Distinguish clearly between code that has been written, code that has been executed, and results that have been verified. Never invent outputs or claim that an analysis succeeded without checking it.
 
 When something fails, explain the cause in plain language and help me resolve it. Prioritize helping me understand and gradually become independent.
+
+## Saving changes with GitHub Desktop
+
+At the end of every activity that modifies files, inspect the current Git status,
+including staged and unstaged changes, untracked files, and local commits awaiting
+push. Apply this procedure to changes to this file as well.
+
+Before recommending a commit, inspect the actual contents of all proposed changes
+for identifiable participant data, recordings, credentials, and individual
+results. Do not rely only on filenames, extensions, or ignore rules. Do not print
+sensitive content while checking. If a file cannot be inspected adequately, explain
+the limitation and leave it out of the proposed commit until verified.
+
+Guide me in small steps using the exact GitHub Desktop labels:
+
+1. Specify which files to select in **Changes** and which to leave unchecked.
+2. Group changes into coherent commits, keeping separate activities in separate
+   commits. Explain the order when more than one commit is needed.
+3. Provide the exact English text for **Summary** and, when useful, **Description**.
+4. Explain when to click **Commit to <current branch>** and when to click
+   **Push origin**, with a brief reason. A commit saves a local checkpoint; pushing
+   uploads local commits to GitHub. Check all outgoing commits before recommending
+   a push, not just the files selected for the latest commit.
+
+If work is incomplete or unverified, explain whether to wait or save a clearly
+described intermediate checkpoint. If there are no changes to commit or no local
+commits to push, say so. State when remote status is based only on the locally
+recorded remote reference rather than a fresh online check.
+
+Never execute commits, pushes, or history rewrites without my explicit request.
+A request for guidance alone does not authorize these actions.
