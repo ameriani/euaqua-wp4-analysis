@@ -1,5 +1,5 @@
 # Run from the project root: source("scripts/02_prepare_qualtrics.R")
-# Dependency: readxl. No response exclusions, recoding, or original-file writes.
+# Dependencies: readxl, jsonlite, xml2. No response exclusions or recoding.
 # Only the preparation object is assigned in the calling environment.
 qualtrics_preparation <- local({
   if (!requireNamespace("readxl", quietly = TRUE)) {
@@ -17,7 +17,9 @@ qualtrics_preparation <- local({
   invisible(capture.output(source("scripts/01_import_qualtrics.R", local = import_env)))
   csv_data <- import_env$qualtrics_data
   csv_metadata <- import_env$qualtrics_dictionary
-  source_paths <- c(import_env$csv_path, excel_path)
+  qsf_path <- file.path(dirname(excel_path), "ITA-EUAQUA-FG-Preliminary-Survey.qsf")
+  if (!file.exists(qsf_path)) stop("Questionnaire QSF not found.")
+  source_paths <- c(import_env$csv_path, excel_path, qsf_path)
   original_hashes <- tools::md5sum(source_paths)
 
   sheets <- readxl::excel_sheets(excel_path)
@@ -177,6 +179,19 @@ qualtrics_preparation <- local({
                 excel_metadata$label[match(csv_metadata$variable, excel_metadata$variable)])))
   ))
 
+  # Complete QSF definitions are kept separate from the observed-only dictionary.
+  source("scripts/qualtrics_codebook.R", local = TRUE)
+  codebook <- build_qualtrics_codebook(qsf_path, csv_metadata, excel_metadata, dictionary)
+  checks <- rbind(checks, data.frame(
+    check = c("QSF question elements", "QSF active question elements",
+              "QSF explicit RecodeValues entries", "Unmatched observed mappings",
+              "Confirmed option mappings", "Unconfirmed or ambiguous option mappings"),
+    value = c(nrow(codebook$questions), sum(codebook$questions$active_in_flow),
+      codebook$recode_entries, nrow(codebook$mapping_issues),
+      sum(codebook$options$mapping_status == "Confirmed by matched Values/Labels exports"),
+      sum(grepl("unconfirmed|Ambiguous", codebook$options$mapping_status)))
+  ))
+
   # Save only variable definitions and aggregate checks to ignored local outputs.
   output_dir <- file.path("outputs", "pilot-ita-30092026", "qualtrics_preparation")
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
@@ -184,6 +199,10 @@ qualtrics_preparation <- local({
             row.names = FALSE, na = "", fileEncoding = "UTF-8")
   write.csv(checks, file.path(output_dir, "aggregate_checks.csv"),
             row.names = FALSE, fileEncoding = "UTF-8")
+  for (part in c("questions", "options", "variables", "flow", "wording", "mapping_issues")) {
+    write.csv(codebook[[part]], file.path(output_dir, paste0("codebook_", part, ".csv")),
+              row.names = FALSE, na = "", fileEncoding = "UTF-8")
+  }
   if (!identical(original_hashes, tools::md5sum(source_paths))) {
     stop("Original-file integrity check failed.")
   }
@@ -191,9 +210,13 @@ qualtrics_preparation <- local({
   print(checks, row.names = FALSE)
   cat("Original files unchanged. No responses excluded or recoded.\n")
   cat("Dictionary saved locally:", file.path(output_dir, "observed_dictionary.csv"), "\n")
-  cat("Complete response scales require the questionnaire/codebook; not inferred.\n")
+  cat("Complete QSF options saved; unobserved numeric codes remain unconfirmed.\n")
+  print(codebook$wording[, c("variable", "exports_equal_after_format_normalization",
+    "csv_matches_qsf_after_format_normalization", "excel_matches_qsf_after_format_normalization")],
+    row.names = FALSE)
   list(csv_data = csv_data, csv_metadata = csv_metadata,
        excel_export = excel_export, excel_data = excel_data,
        excel_metadata = excel_metadata, checks = checks, dictionary = dictionary,
-       match_exports = match_exports, readxl_version = as.character(packageVersion("readxl")))
+       codebook = codebook, match_exports = match_exports,
+       readxl_version = as.character(packageVersion("readxl")))
 })
