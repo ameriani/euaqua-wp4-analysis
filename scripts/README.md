@@ -66,52 +66,108 @@ Review safely in RStudio with `View(qualtrics_preparation$codebook$questions)` a
 are named `codebook_<table>.csv`; raw QSF metadata is not published to GitHub.
 Do not print or open the full imported response objects for a shared demonstration.
 
-## First descriptive analysis
+## Complete descriptive analysis
 
-Run `source("scripts/03_describe_qualtrics.R")` from the RStudio project root.
-It sources preparation in a separate environment and applies the shared theme
-from `euaqua_plot_theme.R`. Required packages are `readxl`, `jsonlite`, `xml2`,
-`ggplot2`, `systemfonts`, and `ragg`. If needed, install them with
-`install.packages(c("readxl", "jsonlite", "xml2", "ggplot2", "systemfonts", "ragg"))`.
+Run from the RStudio project root:
 
-The analysis describes `D_fish_freq` for this pilot sample. It retains all five
-QSF options, including zero counts, in questionnaire order. English display labels
-are stored separately from the original Italian definitions. The translations
-have no identified uncertainty. The ordering comes from QSF display positions,
-not sorting by exported codes or arranging responses by frequency.
+```r
+source("scripts/03_describe_qualtrics.R")
+```
 
-Valid responses have a nonblank value with an unambiguous export-confirmed mapping.
-Only NA and empty strings are missing; whitespace is not trimmed. Unmapped
-nonmissing values are reported separately. No participant rows are removed.
-Percentages are `100 * option count / valid mapped responses`; the denominator is
-shown in the summary and chart caption. If there are no valid responses, percentages
-are undefined. Unobserved options are included with zero counts without assigning
-unconfirmed numeric codes. In particular, an unconfirmed QSF choice ID is never
-treated as an exported code. Unexpected text in unmapped values is withheld;
-unknown numeric codes are reported only as aggregate code counts.
+Preparation runs in a separate environment, preserving existing data/codebook objects.
+Required packages are `readxl`, `jsonlite`, `xml2`, `ggplot2`, `systemfonts`, and `ragg`.
+Reusable chart builders and PNG export are in `euaqua_plot_theme.R`.
+All tables and charts describe this pilot sample only.
 
-Counts are checked independently against the Excel Labels export. Internal checks
-verify the total/valid/missing/unmapped partition and percentage sum. Existing
-imported objects and original files are preserved. Only aggregate outputs and
-definition tables are saved; no participant-level dataset is written.
+The script contains clearly marked sections for sample characteristics, purchasing
+and dietary habits, label/sustainability perceptions, free-text availability, and
+a separate consent audit. It covers 16 substantive categorical items, quantitative
+age, four free-text fields, and five consent fields. Unused QSF questions,
+instructional elements, respondent identifiers and administrative metadata are not
+substantive descriptive outcomes.
 
-Outputs are in `outputs/pilot-ita-30092026/descriptive/D_fish_freq/`, ignored by Git:
+### Approved methods
 
-- `frequency_table.csv`: English response options, counts, and percentages.
-- `response_summary.csv`: total, valid, missing, unmapped, and denominator counts.
-- `option_definitions.csv`: questionnaire order, original Italian labels, English
-  display labels, separately recorded QSF IDs and confirmed codes, and review status.
-- `unmapped_values.csv`: aggregate unmatched codes, with nonnumeric values withheld.
-- `font_report.csv`: font availability and actual regular/bold font resolution.
-- `D_fish_freq_bar_chart.png`: blue bars, all options, and an explicit denominator.
-- `analysis_notes.txt`: definitions and limits for interpreting this pilot sample.
+- Categorical and ordinal items: all options in questionnaire order, including
+  zeros. Count only values with export-confirmed mappings. Report total, valid,
+  missing and unmapped values separately. Percentages are
+  `100 * category count / valid mapped responses`.
+  NA and empty strings are missing. Other values are not silently trimmed.
+- Explicit options such as Never and I do not read labels stay valid categories.
+  Non-readers remain inside each item's denominator. No reader-only analyses.
+- Health/environment/price attention and trust/comprehension/overload are separate
+  items. No ordinal means, scores, category collapsing or combined indices.
+- Age: valid finite numeric count, missing count, invalid nonblank count, median,
+  first/third quartiles and min-max. R `quantile(type = 7)`
+  uses linear interpolation with `h = 1 + (n - 1) * p`.
+  Conversion creates a numerical copy; originals stay unchanged. Whitespace-only
+  ages are missing. Nonnumeric/nonfinite entries cannot enter the numerical summary
+  and are counted separately. Out-of-range and noninteger finite values are flagged
+  and retained in summaries. The bounds come from QSF validation. No age bands.
+- Free text: only nonblank/blank counts among all retained responses. Unicode
+  whitespace and invisible zero-width/BOM characters count as blankness when no
+  other content is present. No individual text, quotations or thematic coding.
+- Consent: C1-C3 form the reviewed participation-consent branch; C4-C5 are optional
+  permissions. Granted/declined/missing/unmapped counts are a separate audit.
+  Flags require review before relevant further analyses; no automatic exclusions.
 
-The script exports PNG with ragg at 180 dpi and resolves fonts with systemfonts.
-Inspect the rendered chart after rerunning; future font installations may change
-the resolved family. Palette and font policy are documented in `AGENTS.md`.
-Generated files at these paths are replaced on rerun.
+### Privacy and translations
 
-In RStudio, use `View(euaqua_descriptive_analysis$frequency_table)` to review the
-aggregate table. Run `print(euaqua_descriptive_analysis$chart)` to show the chart in
-the **Plots** pane, or open the exported PNG from **Files**. The source data and
-codebook keep their original wording and variable names.
+Gender, education and occupation distributions are checked internally, but all
+subgroup counts/percentages are withheld in saved tables, and no demographic charts
+are exported. Completeness counts and questionnaire definitions remain available.
+No cross-tabulations, demographic combinations or individual age points are shown.
+A disclosure rule is still needed before demographic subgroup results are released.
+
+English display labels are separate from the original Italian questionnaire and
+codebook definitions. Option definitions link both languages, keeping QSF IDs
+separate from exported codes. Education translations are flagged for review:
+they describe Italian qualifications and do not establish international equivalence.
+
+### Outputs and review
+
+Generated files are ignored by Git under
+`outputs/pilot-ita-30092026/descriptive/`.
+Subfolders are:
+
+- `sample_characteristics/<variable>/`: protected categorical tables, age
+  numerical summary, and availability tables for demographic text fields.
+- `purchasing_and_dietary_habits/<variable>/`: grocery responsibility, diet,
+  separate attention items, and diet text availability.
+- `label_and_sustainability_perceptions/<variable>/`: label/perception items,
+  fish preference, awareness, and fish preference text availability.
+- `consent_audit/`: permission audit, required-consent summary, and review notes.
+- The existing fish-consumption folder `D_fish_freq/` and its original filenames
+  are preserved for backward compatibility.
+
+Each categorical folder has `frequency_table.csv`, `response_summary.csv`,
+`option_definitions.csv`, `unmapped_values.csv`, and `analysis_notes.txt`.
+Eligible charts are named `<variable>_bar_chart.png`.
+Age has `age_summary.csv`; free-text fields have `text_availability.csv`.
+Root files `descriptive_plan.csv`, `categorical_response_overview.csv`,
+`free_text_availability.csv`, `font_report.csv`, and `methodological_decisions.txt`
+provide a review index and document the denominator/disclosure decisions.
+Generated files are replaced on rerun; no participant-level datasets are written.
+
+Review safely in RStudio:
+
+```r
+View(euaqua_descriptive_analysis$response_overview)
+View(euaqua_descriptive_analysis$age_summary)
+View(euaqua_descriptive_analysis$free_text_availability)
+View(euaqua_descriptive_analysis$consent_audit)
+View(euaqua_descriptive_analysis$analyses$E_label_trust$frequency_table)
+print(euaqua_descriptive_analysis$analyses$E_label_trust$chart)
+```
+
+The original fish result remains available as
+`euaqua_descriptive_analysis$frequency_table` and
+`euaqua_descriptive_analysis$chart`.
+Open exported PNGs from the RStudio Files pane to inspect actual rendering.
+
+Counts are checked against Excel Labels and percentages against their stated
+denominator. Source objects and files are preserved. Each export uses ragg at
+180 dpi, with systemfonts resolving regular/bold font families. Report the further
+fallback if Montserrat and Calibri are absent. Visually inspect exported charts
+after rerunning, particularly when fonts or labels change. The shared colours
+remain provisional approximations, as documented in AGENTS.md.

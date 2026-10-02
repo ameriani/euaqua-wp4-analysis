@@ -51,6 +51,48 @@ Distinguish clearly between code that has been written, code that has been execu
 
 When something fails, explain the cause in plain language and help me resolve it. Prioritize helping me understand and gradually become independent.
 
+## Approved descriptive methods
+
+Keep all variable-level Qualtrics descriptives in `scripts/03_describe_qualtrics.R`,
+organized into sample characteristics, purchasing/dietary habits, and
+label/sustainability perceptions. Keep reusable plot builders and export functions
+in `scripts/euaqua_plot_theme.R`. Preserve the original fish-consumption outputs.
+
+For ordinal items, use separate questionnaire-order category counts and percentages.
+Do not compute ordinal means or numerical scores, collapse categories, or combine
+items into scales. Health, environmental and price attention, and label trust,
+comprehension and overload remain separate. Keep "I do not read labels" inside the
+valid-response denominator; do not restrict analyses to label readers. Explicit
+answers such as "Never" and "Prefer not to answer" are response categories.
+
+For categorical items, valid responses have an unambiguous export-confirmed mapping.
+Report total, valid, missing and unmapped nonmissing counts. Percentages use that
+item's valid mapped responses. Retain zero-count options with unconfirmed codes
+left unassigned. Categorical missingness currently means NA or an empty string;
+do not trim or recode other categorical values silently.
+
+For age, use valid/missing counts, median, first/third quartiles and minimum/maximum.
+State the quartile method: R `quantile(type = 7)`, linear interpolation with
+`h = 1 + (n - 1) * p`. Convert only a derived numerical copy. Count nonblank
+nonnumeric/nonfinite entries separately. Flag values outside the QSF validation
+range and noninteger ages; include all finite numeric values without automatic
+range exclusions. Do not create age bands. No age-by-demographic combinations.
+
+For free text, report only nonblank and blank counts. Account for whitespace,
+including Unicode spaces and invisible zero-width/BOM characters when testing
+blankness. Do not display individual text, translate responses, or code themes.
+
+Audit C1-C3 as required-consent information in the reviewed QSF flow and C4-C5 as
+optional permissions. Report declined/missing/unmapped selections as review flags.
+Do not automatically exclude participants. Verify the permissions relevant to
+each subsequent analysis; an export selection is not a blanket authorization.
+
+For this small pilot, withhold all gender, education and occupation subgroup
+counts/charts pending a disclosure rule. Retain completeness checks and option
+definitions. Do not display small demographic groups or combinations that could
+identify participants. This is a disclosure safeguard, not category collapsing or
+participant exclusion. Flag translations that may imply qualification equivalence.
+
 ## Saving changes with GitHub Desktop
 
 At the end of every activity that modifies files, inspect the current Git status,
