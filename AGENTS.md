@@ -12,6 +12,37 @@ Write all Git and GitHub content in English, including commit messages, branch n
 
 Preserve the original language of research data, participant responses, quotations, and existing variable names unless I explicitly ask you to translate them.
 
+## Shared EUAqua visual style and output language
+
+Use `scripts/euaqua_plot_theme.R` for future charts. Centralize palette changes
+there: blue `#246DB5`, green `#83B829`, and light blue `#5598CF`. These are provisional
+approximations from the EUAqua reference, not verified official brand codes.
+Use a white background, readable dark text, and subtle grid lines. Use blue bars
+for single-series descriptive charts and omit legends when they add no information.
+
+Use Montserrat for all chart text, with Calibri as the first fallback. Verify font
+availability and the family actually resolved by the export renderer. If neither is
+available, use Arial, then Helvetica, then the resolved system sans font, and report
+the further fallback. Use ragg for PNG export, apply the selected family to text
+geometries as well as theme text, and visually inspect exported charts.
+
+Write all analysis explanations, code comments, documentation, table headings,
+chart titles, axis labels, legends, and captions in English. Preserve original
+Italian questionnaire wording and response labels, participant responses, and
+existing variable names in source data and codebooks. Create separate English
+display labels for analytical outputs, preserving meaning and questionnaire order.
+Flag uncertain translations for review. Do not overwrite original labels to translate
+outputs. Original-language definition columns may be retained alongside English
+display columns for traceability.
+
+For descriptive analyses, show every questionnaire option, including zero counts.
+Use export-confirmed numeric mappings, never assume QSF option IDs are export codes,
+and report unmapped nonmissing values separately. State total, valid, missing, and
+unmapped counts and the denominator used for percentages. Document what valid and
+missing mean for each analysis. Describe pilot results as applying to the pilot
+sample. Preserve existing objects and original files and save generated outputs
+under the ignored `outputs/` folder.
+
 Treat original research data as read-only. Before uploading files to GitHub, check that they are intended for sharing and that identifiable participant data and recordings are excluded.
 
 Do not silently make methodological decisions about exclusions, missing values, recoding, statistical models, or interpretation. Explain proposed choices and their implications, and ask me when a decision requires my scientific judgment.
