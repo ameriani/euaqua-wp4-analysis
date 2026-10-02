@@ -39,33 +39,35 @@ mode_sentence <- function(v) {
   t <- a$table
   top <- which(t$Count == max(t$Count))
   labels <- paste0("‘", esc(t$Response_option[top]), "’", collapse = " and ")
-  paste0(if (length(top) > 1) "The joint most frequent categories were " else "The most frequent category was ",
-    labels, " (", numeric_span(t$Count[top[1]]), " responses per category; ",
+  tied <- length(top) > 1L
+  paste0(if (tied) "The joint most frequent categories were " else "The most frequent category was ",
+    labels, " (", numeric_span(t$Count[top[1]]),
+    if (tied) " responses per category; " else " responses; ",
     numeric_span(sprintf("%.1f", t$Percent_of_valid_responses[top[1]])),
-    "% each, among ", numeric_span(a$summary$Percent_denominator), " valid responses).")
+    if (tied) "% each, among " else "% of ",
+    numeric_span(a$summary$Percent_denominator), " valid responses).")
 }
 item_results <- function(v) {
   a <- report$items[[v]]; s <- a$summary
-  cat('<div class="item"><h3>', esc(a$title), '</h3><p>', esc(a$question), '</p>\n', sep = "")
-  cat('<p class="denominator">Total: ', numeric_span(s$Total_responses),
-    '; valid mapped: ', numeric_span(s$Valid_mapped_responses), '; missing: ', numeric_span(s$Missing_responses),
-    '; unmapped nonmissing: ', numeric_span(s$Unmapped_nonmissing_responses),
-    '. Percentage denominator: ', numeric_span(s$Percent_denominator), ' valid mapped responses.</p>\n', sep = "")
+  cat('<div class="item"><h3>', esc(a$title), '</h3>\n', sep = "")
+  cat('<p class="denominator">Percentages: valid mapped n = ', numeric_span(s$Percent_denominator),
+    '; total = ', numeric_span(s$Total_responses), '; missing = ', numeric_span(s$Missing_responses),
+    '; unmapped = ', numeric_span(s$Unmapped_nonmissing_responses), '.</p>\n', sep = "")
   t <- data.frame(Order = a$table$Questionnaire_order, `Response option` = a$table$Response_option,
     Count = a$table$Count, `Valid responses (%)` = ifelse(is.na(a$table$Percent_of_valid_responses),
       "Not available", sprintf("%.1f", a$table$Percent_of_valid_responses)), check.names = FALSE)
-  report_table(t, paste0(a$title, " (", v, "). Options in questionnaire order."),
+  report_table(t, paste0(v, ": response distribution."),
     c("Order", "Count", "Valid responses (%)"))
-  cat('<p>', mode_sentence(v), '</p>\n', sep = "")
+  # A modal-category sentence adds no information beyond the table and chart.
+  # Keep these concise sentences in the overview rather than repeating each item.
   unknown <- sum(is.na(a$definitions$Confirmed_exported_code))
-  cat('<p class="footnote">Options without a confirmed exported code: ', numeric_span(unknown),
-    '. Their numeric mappings remain unassigned; zero counts reflect the matched exports, not an assumed code.</p>\n', sep = "")
+  if (unknown > 0L) cat('<p class="footnote">Mapping review: ', numeric_span(unknown),
+    ' option(s) have unconfirmed export codes.</p>\n', sep = "")
   if (nrow(a$unmapped)) report_table(a$unmapped, paste("Unmapped values requiring review:", v), "Count")
   figure_number <<- figure_number + 1L
   cat('<figure><img src="', esc(a$asset), '" alt="', esc(paste(a$title, "bar chart; all values are in the preceding table.")),
-    '"><figcaption>Figure ', figure_number, '. ', esc(a$title),
-    '. Counts and valid-response percentages; denominator n = ', numeric_span(s$Percent_denominator),
-    '.</figcaption></figure></div>\n', sep = "")
+    '"><figcaption>Figure ', figure_number, '. ', esc(v),
+    ': counts and valid-response percentages.</figcaption></figure></div>\n', sep = "")
 }
 age <- report$age
 ```
@@ -96,13 +98,15 @@ cat('<p><strong>Age.</strong> Median ', numeric_span(age$Median_years), ' years;
 
 ## Methods and completeness
 
-The report reuses the aggregate objects and exported charts produced by `scripts/03_describe_qualtrics.R`. That script runs the existing import and preparation workflow, matches Values and Labels exports by ResponseId rather than row order, checks PID consistency, and uses the QSF to retain questionnaire definitions and response order. Identifiers never enter the report template. No participants are excluded and the original files remain unchanged.
+The report reuses verified aggregates and charts from `scripts/03_describe_qualtrics.R`. Preparation matches Values and Labels exports by ResponseId, checks PID consistency and retains QSF definitions and response order. No identifiers enter the report, no participants are excluded and originals remain unchanged.
 
-The pilot date is taken from the saved **EUAQUA WP4 executive Gantt**, whose pilot note states “Pilot scheduled for 30 September 2026”. The date agrees with the pilot archive designation. This is the project-scheduled session date; preliminary questionnaire completion timestamps are a different measure.
+The saved **EUAQUA WP4 executive Gantt** states “Pilot scheduled for 30 September 2026”, consistent with the archive designation. This is the scheduled session date, distinct from questionnaire completion dates.
 
 For categorical items, **valid** means a nonmissing value with an unambiguous mapping confirmed against the matched exports. **Missing** means NA or an empty string; other categorical values are not silently trimmed or recoded. Unmapped nonmissing values are counted separately. Each percentage is the category count divided by that item's valid mapped responses, multiplied by 100. Values are displayed to one decimal place; rounding may affect displayed sums.
 
-All questionnaire options are retained, including zero counts. Unobserved option codes are left unassigned where the exports cannot confirm them: QSF choice IDs are not assumed to equal numeric export values. “Never”, “Prefer not to answer”, and “I do not read labels” are explicit responses. Non-readers remain in the valid denominator. Ordinal items are described separately, without means, scores, combined scales or category collapsing.
+Tables retain all options in questionnaire order, including zero counts. Unobserved codes remain unassigned unless confirmed by the exports; QSF choice IDs are not assumed to be export values. Zero counts reflect matched exports, not assumed codes. “Never”, “Prefer not to answer”, and “I do not read labels” are valid categories, with non-readers included in the denominator. Ordinal items remain separate, without means, scores, combined scales or category collapsing.
+
+Age summaries retain all finite values from a derived numerical copy. Whitespace-only entries are missing; nonblank nonnumeric/nonfinite entries, values outside the QSF range and noninteger ages are flagged without automatic removal. Quartiles use R `quantile(type = 7)`, with linear interpolation at **h = 1 + (n − 1) × p**. The denominator is the number of finite converted values. No age bands or demographic combinations are used.
 
 ```{r completeness, results='asis'}
 o <- report$completeness
@@ -115,11 +119,9 @@ report_table(t, "Categorical completeness. Denominators are item-specific; demog
   names(t)[-1])
 ```
 
-Free-text fields are checked only for blankness, accounting for whitespace, Unicode spaces and invisible zero-width/BOM characters. No response text or thematic coding is included. Consent eligibility and optional permissions are audited separately from substantive results. Permission checks must be reviewed for the intended subsequent transcript or other analysis; this report does not establish blanket authorization.
+Free-text checks account for whitespace, Unicode spaces and invisible zero-width/BOM characters; no quotations or thematic coding are included. Consent is audited separately. Permissions for subsequent transcript or other analyses require review; this report does not establish blanket authorization.
 
 ## Sample characteristics
-
-Age is summarised from a derived numerical copy. All finite numerical values are retained. Nonblank nonnumeric or nonfinite entries are counted separately; values outside the QSF validation range and noninteger ages are flagged without automatic removal. No age bands or demographic combinations are used.
 
 ```{r age, results='asis'}
 fields <- c("Total_responses", "Valid_numeric_responses", "Missing_responses", "Invalid_nonmissing_responses",
@@ -132,13 +134,9 @@ report_table(data.frame(Measure = labels, Value = vapply(fields, function(k) num
   "Age summary and conversion checks.", "Value")
 ```
 
-Quartiles use R `quantile(type = 7)`: linear interpolation with **h = 1 + (n − 1) × p**. Missing age entries include whitespace-only values. The numerical summary denominator is the count of finite converted values.
-
 Gender, education and occupation subgroup counts and charts are withheld pending an agreed disclosure rule for this small pilot. This does not collapse categories or exclude participants.
 
 ## Purchasing and dietary habits
-
-Health and nutritional quality, environmental sustainability, and price attention are analysed separately. Their response categories are not converted into numerical scores.
 
 ```{r purchasing, results='asis'}
 vars <- report$completeness$Variable[report$completeness$Section == "purchasing_and_dietary_habits"]
@@ -146,8 +144,6 @@ for (v in vars) item_results(v)
 ```
 
 ## Label and sustainability perceptions
-
-Label trust, comprehension and information overload remain separate items. The non-reader response is shown explicitly, including when its count is zero; analyses are not restricted to label readers.
 
 ```{r perceptions, results='asis'}
 vars <- report$completeness$Variable[report$completeness$Section == "label_and_sustainability_perceptions"]
@@ -174,10 +170,10 @@ cat('<div class="review"><strong>Typography.</strong> Preferred font: ', esc(rep
 
 The blue, green and light-blue palette comes from the shared EUAqua theme and represents provisional visual approximations, not verified official brand colour codes. No appropriate official logo asset was found in the analysis workspace; no replacement logo has been created and no fonts have been downloaded.
 
-The unobserved options' numerical codes remain unconfirmed wherever the exports provide no mapping evidence. Confirming them will require appropriate survey/export evidence before using those codes in future data. The displayed zero counts do not assign a numeric mapping. Education translations and the demographic disclosure rule require review. The scheduled pilot date provenance is documented above; any difference between scheduled and actual session dates should be corrected in report metadata.
+Unconfirmed codes require survey/export evidence before future use. Education translations and the demographic disclosure rule require review. Correct the pilot-date metadata if the actual session differed from the schedule.
 
 ## Reproducibility
 
-From the project root in RStudio, run `source("reports/render_pilot_report.R")`. The renderer reruns the existing descriptive script, checks its frequency tables and age summary against exported CSVs, copies the existing charts into the report asset folder, then renders this report. Numerical findings are generated from the aggregate objects, never entered manually into the report source.
+In RStudio, run `source("reports/render_pilot_report.R")` from the project root. It reruns the existing analysis, verifies tables against CSV outputs and renders numerical findings directly from aggregates.
 
-Keep the generated HTML together with its `assets/` and supporting library folders. The output folder also contains `verification.txt` and `session_info.txt` documenting numerical checks and the R environment. Generated files remain under the ignored `outputs/` folder. Review the report in a browser and use its print preview for a paper or PDF version.
+Keep the HTML and its asset folders together under ignored `outputs/`. Numerical checks and R environment details are recorded in `verification.txt` and `session_info.txt`. Review browser print preview before printing or saving a PDF.

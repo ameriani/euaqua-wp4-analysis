@@ -46,26 +46,28 @@ render_euaqua_pilot_report <- function(report_date = as.Date(format(Sys.time(), 
   # checked against the saved executive Gantt: "Pilot scheduled for 30 September 2026".
   family <- report$font$Resolved_regular_family
   css <- sprintf('
-html { background: %s; } body { font-family: "%s", sans-serif; color: %s; font-size: 16px; line-height: 1.6; margin: 0; }
-.main-container { max-width: 1080px; margin: auto; padding: 48px 36px; }
+html { background: %s; } body { font-family: "%s", sans-serif; color: %s; font-size: 15px; line-height: 1.45; margin: 0; }
+.main-container { max-width: 1080px; margin: auto; padding: 36px 32px; }
 h1,h2,h3,h4 { font-family: inherit; color: %s; line-height: 1.25; }
-h1 { font-size: 40px; margin: 12px 0 24px; } h2 { margin-top: 54px; border-bottom: 3px solid %s; padding-bottom: 12px; }
-h3 { margin-top: 36px; } .eyebrow { color: %s; letter-spacing: .12em; font-weight: bold; }
+h1 { font-size: 36px; margin: 10px 0 18px; } h2 { margin-top: 36px; border-bottom: 3px solid %s; padding-bottom: 8px; }
+h3 { margin-top: 24px; } .eyebrow { color: %s; letter-spacing: .12em; font-weight: bold; }
 .title-card { border-top: 8px solid %s; border-bottom: 1px solid %s; padding: 24px 0 32px; }
 .metadata { display: flex; flex-wrap: wrap; gap: 28px; } .metadata strong { display: block; color: %s; }
 .review { border-left: 4px solid %s; padding: 12px 20px; background: #f7f9fa; }
-table { width: 100%%; border-collapse: collapse; margin: 18px 0 28px; font-size: 14px; }
-caption,figcaption { text-align: left; font-weight: bold; color: %s; margin: 10px 0; }
-th { text-align: left; border-bottom: 2px solid %s; padding: 10px; } td { padding: 9px 10px; border-bottom: 1px solid %s; vertical-align: top; }
+table { width: 100%%; border-collapse: collapse; margin: 12px 0 18px; font-size: 13px; }
+caption,figcaption { text-align: left; font-weight: bold; color: %s; margin: 7px 0; font-size: 12px; }
+th { text-align: left; border-bottom: 2px solid %s; padding: 7px 8px; } td { padding: 6px 8px; border-bottom: 1px solid %s; vertical-align: top; }
 td.numeric { text-align: right; font-variant-numeric: tabular-nums; } tbody tr:nth-child(even) { background: #f7f9fa; }
-figure { margin: 24px 0 36px; } figure img { display: block; max-width: 100%%; height: auto; }
-.denominator,.footnote { font-size: 14px; } .item { margin: 32px 0 48px; } a { color: %s; }
+figure { margin: 16px 0 24px; } figure img { display: block; max-width: 100%%; height: auto; }
+.denominator,.footnote { font-size: 13px; } .item { margin: 24px 0 32px; } a { color: %s; }
 @page { size: A4; margin: 16mm; }
-@media print { body { font-size: 10pt; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-.main-container { max-width: none; padding: 0; } h1 { font-size: 26pt; } h2 { font-size: 18pt; margin-top: 24pt; }
-h3 { font-size: 13pt; } h1,h2,h3,caption,figcaption,.denominator { break-after: avoid; }
-table { font-size: 9pt; break-inside: avoid; } tr,figure,.title-card,.review { break-inside: avoid; }
-thead { display: table-header-group; } figure img { max-height: 140mm; width: auto; max-width: 100%%; }
+@media print { body { font-size: 10pt; line-height: 1.3; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+.main-container { max-width: none; padding: 0; } h1 { font-size: 24pt; } h2 { font-size: 16pt; margin-top: 18pt; }
+h3 { font-size: 12pt; } h1,h2,h3,caption,.denominator { break-after: avoid; }
+table { font-size: 9.5pt; break-inside: avoid; } tr,figure,.title-card,.review { break-inside: avoid; }
+thead { display: table-header-group; } figure { margin: 10pt 0 14pt; }
+figure img { max-height: 135mm; width: auto; max-width: 100%%; }
+caption,figcaption { font-size: 9pt; } .title-card { padding: 14pt 0 18pt; }
 .metadata { gap: 18px; } .denominator,.footnote { font-size: 9pt; } }
 ', style$euaqua_neutrals[["background"]], family, style$euaqua_neutrals[["text"]],
     style$euaqua_palette[["blue"]], style$euaqua_palette[["green"]], style$euaqua_palette[["green"]],
@@ -90,6 +92,9 @@ thead { display: table-header-group; } figure img { max-height: 140mm; width: au
   narrative <- xml2::xml_find_all(doc, "//span[@data-expected]")
   stopifnot(identical(trimws(xml2::xml_text(narrative)), xml2::xml_attr(narrative, "data-expected")),
     length(xml2::xml_find_all(doc, "//figure")) == length(items))
+  prose <- gsub("[[:space:]]+", " ", xml2::xml_text(xml2::xml_find_all(doc, "//p")))
+  singular <- prose[grepl("The most frequent category was", prose, fixed = TRUE)]
+  stopifnot(!any(grepl("responses per category|% each", singular)))
   writeLines(c(paste("Verified numeric table cells:", length(nodes)),
     paste("Verified numeric narrative fields:", length(narrative)),
     paste("Verified existing charts:", length(items)),
