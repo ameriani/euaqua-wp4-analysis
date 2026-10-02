@@ -136,13 +136,13 @@ euaqua_descriptive_analysis <- local({
   cat("Count and percentage checks passed; original response objects preserved.\n")
   cat("Chart saved:", chart_path, "\n")
 
-  # ---- Sample characteristics: privacy-protected categories and quantitative age ----
-  # No demographic subgroup counts/charts or demographic combinations are released.
+  # ---- Sample characteristics: authorized marginal distributions and quantitative age ----
+  # User-approved demographic tables only; no cross-tabulations or individual records.
   analyses <- list(D_fish_freq = list(frequency_table = frequency_table, summary = summary,
     option_definitions = option_definitions, unmapped_values = counted$unmapped,
     chart = chart, chart_path = chart_path))
   root <- file.path("outputs", "pilot-ita-30092026", "descriptive")
-  disclosure <- c("C_gender", "C_education", "C_occupation")
+  demographic_tables_only <- c("C_gender", "C_education", "C_occupation")
   text_blank <- function(x) {
     visible <- gsub("(*UTF)(*UCP)[[:space:]\\p{Zs}\\x{200B}\\x{FEFF}]", "", enc2utf8(x), perl = TRUE)
     is.na(x) | !nzchar(visible)
@@ -151,7 +151,7 @@ euaqua_descriptive_analysis <- local({
   analysis_specs <- list(D_fish_freq = list(section = "purchasing_and_dietary_habits",
     type = "ordered categories", translation_status = "No uncertainty identified"))
 
-  # Compute and verify exact counts privately, then withhold demographic detail.
+  # Verify counts against both exports; preserve original demographic categories.
   # English labels are separate from Italian source definitions; option IDs are not codes.
   describe_category <- function(v, section, title, subtitle, italian, english, type = "categories",
                                 translation_status = "No uncertainty identified") {
@@ -177,12 +177,7 @@ euaqua_descriptive_analysis <- local({
     dir <- file.path(root, section, v)
     dir.create(dir, recursive = TRUE, showWarnings = FALSE)
     plot <- NULL; path <- NA_character_
-    if (v %in% disclosure) {
-      ft$Count <- NA_integer_; ft$Percent_of_valid_responses <- NA_real_
-      ft$Disclosure_status <- "All subgroup counts withheld pending disclosure review"
-      cts$unmapped <- data.frame(Unmapped_value = "Demographic detail withheld",
-        Count = cts$summary$Unmapped_nonmissing_responses)
-    } else {
+    if (!v %in% demographic_tables_only) {
       plot <- euaqua_frequency_plot(ft, cts$summary, title,
         paste(strwrap(subtitle, width = 100), collapse = "\n"), font_family)
       path <- file.path(dir, paste0(v, "_bar_chart.png"))
@@ -198,11 +193,11 @@ euaqua_descriptive_analysis <- local({
       "Unmapped values remain separate. Unobserved options retain unconfirmed numeric codes.",
       "No ordinal means, numerical scores, collapsed categories, combined scales, or reader-only analyses.",
       paste("Translation review:", translation_status),
-      if (v %in% disclosure) "All demographic subgroup counts/charts withheld." else
+      if (v %in% demographic_tables_only) "User-authorized marginal demographic table; no chart or cross-tabulation." else
         "All questionnaire options included, including zeros, in questionnaire order."
     ), file.path(dir, "analysis_notes.txt"), useBytes = TRUE)
     analyses[[v]] <<- list(frequency_table = ft, summary = cts$summary, option_definitions = defs,
-      unmapped_values = cts$unmapped, chart = plot, chart_path = path)
+      unmapped_values = cts$unmapped, chart = plot, chart_path = path, title = title, question = subtitle)
     analysis_specs[[v]] <<- list(section = section, type = type, translation_status = translation_status)
   }
   describe_category("C_gender", "sample_characteristics", "Gender identity",
@@ -249,13 +244,45 @@ euaqua_descriptive_analysis <- local({
   age_dir <- file.path(root, "sample_characteristics", "C_age")
   dir.create(age_dir, recursive = TRUE, showWarnings = FALSE)
   write_table(age_summary, file.path(age_dir, "age_summary.csv"))
-  writeLines(c("Quantitative age: median, quartiles, min-max and conversion flags. No age bands or individual points.",
+  writeLines(c("Quantitative age: median, quartiles, min-max and conversion flags. No individual points.",
     "Quartiles: R quantile type 7, linear interpolation with h = 1 + (n - 1) * p.",
     "Only a derived numeric copy is converted; original values remain unchanged.",
     "NA, empty and whitespace-only entries are missing. Non-finite/nonnumeric nonblank values are counted as invalid.",
     "All finite numeric entries remain in summaries, including those outside the QSF range or not whole years.",
     "Unexpected values require review; no automatic exclusions. No age-by-demographic combinations."
   ), file.path(age_dir, "analysis_notes.txt"))
+
+  # User-approved recruitment comparison: 18-30, 31-55 and 56+, in completed years.
+  # Only a derived copy is grouped. Finite noninteger or under-18 ages remain in
+  # numerical summaries and are flagged as unassigned here, never silently rounded.
+  age_copy <- suppressWarnings(as.numeric(preparation$csv_data$C_age))
+  age_missing <- text_blank(preparation$csv_data$C_age)
+  age_assignable <- !age_missing & is.finite(age_copy) & age_copy == trunc(age_copy) & age_copy >= 18
+  age_band <- cut(age_copy[age_assignable], breaks = c(18, 31, 56, Inf),
+    labels = c("18-30", "31-55", "56+"), right = FALSE)
+  age_band_denominator <- sum(age_assignable)
+  age_bands <- data.frame(Category = levels(age_band), Count = as.integer(table(age_band)),
+    Percent = if (age_band_denominator > 0) 100 * as.integer(table(age_band)) / age_band_denominator else NA_real_,
+    Denominator = age_band_denominator)
+  age_band_summary <- data.frame(Total = length(age_copy), Valid_banded = age_band_denominator,
+    Missing = sum(age_missing), Unassigned_nonmissing = sum(!age_missing & !age_assignable))
+  stopifnot(sum(age_bands$Count) == age_band_denominator,
+    sum(age_band_summary[-1]) == age_band_summary$Total)
+  write_table(age_bands, file.path(age_dir, "age_band_distribution.csv"))
+  write_table(age_band_summary, file.path(age_dir, "age_band_summary.csv"))
+
+  # A comparison-only tertiary grouping; the four questionnaire categories stay intact.
+  education <- analyses$C_education$frequency_table
+  stopifnot(identical(education$Response_option, c("Lower secondary school or below",
+    "Upper secondary school diploma", "Bachelor's degree", "Master's degree or higher (including PhD)")))
+  education_comparison <- data.frame(Category = c("At most lower secondary", "Upper secondary diploma",
+    "University degree (combined questionnaire options)"),
+    Count = c(education$Count[1:2], sum(education$Count[3:4])),
+    Denominator = analyses$C_education$summary$Percent_denominator)
+  education_comparison$Percent <- if (education_comparison$Denominator[1] > 0)
+    100 * education_comparison$Count / education_comparison$Denominator else NA_real_
+  stopifnot(sum(education_comparison$Count) == analyses$C_education$summary$Valid_mapped_responses)
+  write_table(education_comparison, file.path(root, "sample_characteristics/C_education/education_comparison.csv"))
 
   # ---- Purchasing and dietary habits: separate distributions, no combined attention scale ----
   # The fish-consumption analysis above retains its original table, plot and output path.
@@ -386,10 +413,27 @@ euaqua_descriptive_analysis <- local({
   if (!any(vapply(branches, function(b) all(vapply(qids, function(id)
       grepl(id, b, fixed = TRUE), logical(1))), logical(1)))) stop("Consent flow changed; review required.")
   consent <- audit_consents(preparation$csv_data, preparation$codebook$options)
+  # Faithful English display translations of the verified QSF questions. Retain
+  # exact Italian text separately for traceability, without individual selections.
+  consent_definitions <- data.frame(Consent_variable = paste0("C", 1:5),
+    Original_question = preparation$codebook$questions$question_text[
+      match(paste0("C", 1:5), preparation$codebook$questions$export_tag)],
+    English_question = c("Do you consent to participate in the study?",
+      "Do you consent to the processing of your personal data for this research, as described in section A of the privacy notice?",
+      "Do you consent to the recording and use of your image and voice for the research purposes described in section A of the privacy notice?",
+      paste("Do you consent to the analysis of your facial expressions using artificial intelligence tools, respecting the confidentiality measures described in sections A and A1 of the privacy notice?",
+        "This analysis will help us better understand consumer perceptions. Consent is optional: you may participate even if you do not consent."),
+      paste("Do you consent to the retention and further use of your data for future research, as described in section B of the privacy notice?",
+        "Retaining the collected data will allow us to use them for new investigations, extending the scientific contribution of your participation.",
+        "Consent is optional: you may participate even if you do not consent.")),
+    Permission = c("Study participation", "Personal-data processing for this research",
+      "Recording and research use of image and voice", "AI analysis of facial expressions",
+      "Data retention and further use for future research"))
   consent_dir <- file.path(root, "consent_audit")
   dir.create(consent_dir, recursive = TRUE, showWarnings = FALSE)
   write_table(consent$audit, file.path(consent_dir, "consent_permission_audit.csv"))
   write_table(consent$eligibility, file.path(consent_dir, "required_consent_summary.csv"))
+  write_table(consent_definitions, file.path(consent_dir, "consent_question_definitions.csv"))
   writeLines(c("C1-C3: required in the reviewed QSF participation branch. C4-C5: optional permissions.",
     "Consent is eligibility/permission information, not a substantive research outcome.",
     "Declined, missing and unmapped permissions are flagged; no participants are automatically excluded.",
@@ -399,7 +443,7 @@ euaqua_descriptive_analysis <- local({
   # ---- Coverage, methods and review index ----
   response_overview <- do.call(rbind, lapply(names(analyses), function(v) {
     data.frame(Variable = v, Section = analysis_specs[[v]]$section, analyses[[v]]$summary,
-      Disclosure_status = if (v %in% disclosure) "Demographic subgroup results withheld" else "Aggregate distribution")
+      Disclosure_status = if (v %in% demographic_tables_only) "Authorized marginal demographic table" else "Aggregate distribution")
   }))
   rownames(response_overview) <- NULL
   plan <- do.call(rbind, lapply(names(analyses), function(v) {
@@ -422,11 +466,12 @@ euaqua_descriptive_analysis <- local({
   writeLines(c("Approved methods: separate ordinal item counts/percentages; no means, scores, collapsing or combined scales.",
     "Non-reader options remain explicit valid responses. No analysis restricted to label readers.",
     "Percentages use each item's valid mapped responses. Never is a valid category.",
-    "Age: median/quartiles (R type 7), min-max, missing/invalid and range flags; no age bands.",
+    "Age: median/quartiles (R type 7), min-max and flags; user-approved comparison bands 18-30, 31-55, 56+.",
     "Free text: whitespace-aware nonblank/blank counts only. No individual responses or thematic coding.",
     "Consent audit is separate; permissions must be reviewed before relevant further analysis.",
     "All participants retained. Source data, codebook definitions and existing imported objects unchanged.",
-    "Demographic subgroup counts/charts withheld pending a disclosure rule. No combinations or individual age points.",
+    "User-authorized marginal gender, education and occupation tables. No combinations or individual age points.",
+    "Education grouping is comparison-only: bachelor's plus master's/higher. Original four categories are preserved.",
     "Translation review: education qualification labels are descriptive; international equivalence is not assumed.",
     "Colours are provisional EUAqua approximations. Font availability/fallback is recorded in font_report.csv.",
     "These results apply only to the pilot sample."
@@ -439,9 +484,11 @@ euaqua_descriptive_analysis <- local({
   cat("Age missing:", age_summary$Missing_responses, "| invalid:", age_summary$Invalid_nonmissing_responses,
     "| range flags:", age_summary$Outside_QSF_range, "| noninteger flags:", age_summary$Noninteger_values, "\n")
   cat("Consent issues requiring review:", sum(consent$audit$Review_required), "| automatically excluded: 0\n")
-  cat("Demographic subgroup counts/charts withheld. All outputs apply only to this pilot sample.\n")
+  cat("Marginal demographic tables authorized; no demographic charts or combinations. Pilot sample only.\n")
 
   list(analyses = analyses, response_overview = response_overview, age_summary = age_summary,
+    age_bands = age_bands, age_band_summary = age_band_summary, education_comparison = education_comparison,
+    consent_definitions = consent_definitions,
     free_text_availability = free_text_availability, consent_audit = consent$audit,
     eligibility_summary = consent$eligibility, descriptive_plan = plan, chart_paths = charts,
     summarise_age = summarise_age, summarise_text = summarise_text, audit_consents = audit_consents,

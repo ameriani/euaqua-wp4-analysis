@@ -76,7 +76,9 @@ State the quartile method: R `quantile(type = 7)`, linear interpolation with
 `h = 1 + (n - 1) * p`. Convert only a derived numerical copy. Count nonblank
 nonnumeric/nonfinite entries separately. Flag values outside the QSF validation
 range and noninteger ages; include all finite numeric values without automatic
-range exclusions. Do not create age bands. No age-by-demographic combinations.
+range exclusions. User-approved comparison bands are 18-30, 31-55 and 56+,
+in completed years; retain the numerical summaries. Flag unassignable ages without
+rounding or participant exclusion. No age-by-demographic combinations.
 
 For free text, report only nonblank and blank counts. Account for whitespace,
 including Unicode spaces and invisible zero-width/BOM characters when testing
@@ -87,11 +89,29 @@ optional permissions. Report declined/missing/unmapped selections as review flag
 Do not automatically exclude participants. Verify the permissions relevant to
 each subsequent analysis; an export selection is not a blanket authorization.
 
-For this small pilot, withhold all gender, education and occupation subgroup
-counts/charts pending a disclosure rule. Retain completeness checks and option
-definitions. Do not display small demographic groups or combinations that could
-identify participants. This is a disclosure safeguard, not category collapsing or
-participant exclusion. Flag translations that may imply qualification equivalence.
+The user has authorized separate marginal gender, education and occupation tables
+for this pilot report, including original questionnaire categories and zero counts.
+Do not display identifiers, individual records, free-text quotations or demographic
+combinations. Review wider dissemination of this small-sample report separately.
+Only for the benchmark comparison, combine the bachelor's and master's/higher
+education options as university degrees; retain the four original categories.
+Flag qualification equivalence and the broader ISTAT education classification.
+
+Keep national benchmarks, supplied recruitment targets and observed questionnaire
+results separate. Mark demographic percentages as supplied pending verification
+unless reproduced from official population data. ISTAT sex differs from self-reported
+gender; the education reference covers ages 25-64, not all adults. Do not invent
+occupation or seafood benchmarks or a frequent/occasional consumption classification.
+Use: "ISTAT distributions provide contextual benchmarks; the group should not be
+described as demographically representative of the Italian adult population."
+
+The user has authorized a dedicated aggregate "Consent and permissions" report
+section, separate from substantive results. Show agreement, refusal, missing and
+unmapped counts against each item's total denominator. C1-C3 are required in the
+reviewed QSF flow; C4-C5 are optional and activity-specific. Preserve verified
+question wording with separate English display translations. Flag relevant issues
+before subsequent analyses; do not claim that questionnaire selections alone
+establish every ethical, legal or operational requirement or automatically exclude anyone.
 
 ## Saving changes with GitHub Desktop
 

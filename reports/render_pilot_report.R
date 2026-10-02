@@ -15,11 +15,13 @@ render_euaqua_pilot_report <- function(report_date = as.Date(format(Sys.time(), 
   out <- file.path(root, "outputs/pilot-ita-30092026/report")
   assets <- file.path(out, "assets")
   dir.create(assets, recursive = TRUE, showWarnings = FALSE)
-  allowed <- names(analysis$chart_paths)[!is.na(analysis$chart_paths)]
-  # No response-level data, consent results, or demographic distributions enter knitting.
+  allowed <- names(analysis$analyses)
+  # Only aggregate items and permission counts enter knitting, never individual records.
   items <- lapply(allowed, function(v) {
     a <- analysis$analyses[[v]]
-    disk <- read.csv(file.path(dirname(a$chart_path), "frequency_table.csv"), check.names = FALSE)
+    item_dir <- if (is.na(a$chart_path)) file.path("outputs/pilot-ita-30092026/descriptive",
+      analysis$response_overview$Section[match(v, analysis$response_overview$Variable)], v) else dirname(a$chart_path)
+    disk <- read.csv(file.path(item_dir, "frequency_table.csv"), check.names = FALSE)
     stopifnot(isTRUE(all.equal(a$frequency_table, disk, check.attributes = FALSE)),
       sum(a$frequency_table$Count) == a$summary$Valid_mapped_responses,
       a$summary$Total_responses == sum(a$summary[c("Valid_mapped_responses", "Missing_responses", "Unmapped_nonmissing_responses")]))
@@ -27,21 +29,40 @@ render_euaqua_pilot_report <- function(report_date = as.Date(format(Sys.time(), 
       max(abs(a$frequency_table$Percent_of_valid_responses -
         100 * a$frequency_table$Count / a$summary$Percent_denominator)) < 1e-8)
     filename <- paste0(v, "_bar_chart.png")
-    stopifnot(file.copy(a$chart_path, file.path(assets, filename), overwrite = TRUE))
+    has_chart <- !is.na(a$chart_path)
+    if (has_chart) stopifnot(file.copy(a$chart_path, file.path(assets, filename), overwrite = TRUE))
     list(table = a$frequency_table, summary = a$summary,
       definitions = a$option_definitions, unmapped = a$unmapped_values,
-      title = a$chart$labels$title, question = a$chart$labels$subtitle,
-      asset = paste0("assets/", filename))
+      title = if (has_chart) a$chart$labels$title else a$title,
+      question = if (has_chart) a$chart$labels$subtitle else a$question,
+      asset = if (has_chart) paste0("assets/", filename) else NA_character_)
   })
   names(items) <- allowed
   age_disk <- read.csv("outputs/pilot-ita-30092026/descriptive/sample_characteristics/C_age/age_summary.csv")
   stopifnot(isTRUE(all.equal(analysis$age_summary, age_disk, check.attributes = FALSE)))
   report <- list(items = items, completeness = analysis$response_overview,
     age = analysis$age_summary, education = analysis$analyses$C_education$option_definitions,
+    age_bands = analysis$age_bands, age_band_summary = analysis$age_band_summary,
+    education_comparison = analysis$education_comparison,
+    consent = analysis$consent_audit, consent_definitions = analysis$consent_definitions,
     font = analysis$font_report,
     sample_size = unique(analysis$response_overview$Total_responses),
     pilot_date = as.Date("2026-09-30"), report_date = as.Date(report_date))
   stopifnot(length(report$sample_size) == 1L)
+  context_env <- new.env(parent = baseenv())
+  sys.source("reports/pilot_context.R", envir = context_env)
+  report$context <- context_env$euaqua_pilot_context
+  for (v in c("age_band_distribution", "age_band_summary")) {
+    disk <- read.csv(file.path("outputs/pilot-ita-30092026/descriptive/sample_characteristics/C_age", paste0(v, ".csv")))
+    expected <- if (v == "age_band_distribution") report$age_bands else report$age_band_summary
+    stopifnot(isTRUE(all.equal(expected, disk, check.attributes = FALSE)))
+  }
+  stopifnot(isTRUE(all.equal(report$consent,
+    read.csv("outputs/pilot-ita-30092026/descriptive/consent_audit/consent_permission_audit.csv"), check.attributes = FALSE)))
+  stopifnot(isTRUE(all.equal(report$education_comparison,
+    read.csv("outputs/pilot-ita-30092026/descriptive/sample_characteristics/C_education/education_comparison.csv"), check.attributes = FALSE)),
+    isTRUE(all.equal(report$consent_definitions,
+      read.csv("outputs/pilot-ita-30092026/descriptive/consent_audit/consent_question_definitions.csv"), check.attributes = FALSE)))
   # Dates are study metadata, not hard-coded analytical results. The pilot date was
   # checked against the saved executive Gantt: "Pilot scheduled for 30 September 2026".
   family <- report$font$Resolved_regular_family
@@ -66,7 +87,7 @@ figure { margin: 16px 0 24px; } figure img { display: block; max-width: 100%%; h
 h3 { font-size: 12pt; } h1,h2,h3,caption,.denominator { break-after: avoid; }
 table { font-size: 9.5pt; break-inside: avoid; } tr,figure,.title-card,.review { break-inside: avoid; }
 thead { display: table-header-group; } figure { margin: 10pt 0 14pt; }
-figure img { max-height: 135mm; width: auto; max-width: 100%%; }
+figure img { max-height: 138mm; width: auto; max-width: 100%%; }
 caption,figcaption { font-size: 9pt; } .title-card { padding: 14pt 0 18pt; }
 .metadata { gap: 18px; } .denominator,.footnote { font-size: 9pt; } }
 ', style$euaqua_neutrals[["background"]], family, style$euaqua_neutrals[["text"]],
@@ -91,16 +112,16 @@ caption,figcaption { font-size: 9pt; } .title-card { padding: 14pt 0 18pt; }
     identical(trimws(xml2::xml_text(nodes)), xml2::xml_attr(nodes, "data-expected")))
   narrative <- xml2::xml_find_all(doc, "//span[@data-expected]")
   stopifnot(identical(trimws(xml2::xml_text(narrative)), xml2::xml_attr(narrative, "data-expected")),
-    length(xml2::xml_find_all(doc, "//figure")) == length(items))
+    length(xml2::xml_find_all(doc, "//figure")) == sum(!is.na(analysis$chart_paths)))
   prose <- gsub("[[:space:]]+", " ", xml2::xml_text(xml2::xml_find_all(doc, "//p")))
   singular <- prose[grepl("The most frequent category was", prose, fixed = TRUE)]
   stopifnot(!any(grepl("responses per category|% each", singular)))
   writeLines(c(paste("Verified numeric table cells:", length(nodes)),
     paste("Verified numeric narrative fields:", length(narrative)),
-    paste("Verified existing charts:", length(items)),
+    paste("Verified existing charts:", sum(!is.na(analysis$chart_paths))),
     "Frequency tables and age summary agree with descriptive CSV outputs.",
     "Counts reconcile with denominators; percentages checked before rendering.",
-    "No participant-level objects or consent results supplied to report template.",
+    "Only permitted marginal demographics and aggregate consent counts supplied; no participant-level objects.",
     "All report resources are present and referenced by relative local paths.",
     "HTML typography and print pagination require browser preview; numeric verification does not verify layout."
   ), file.path(out, "verification.txt"))

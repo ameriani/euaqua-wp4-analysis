@@ -64,6 +64,10 @@ item_results <- function(v) {
   if (unknown > 0L) cat('<p class="footnote">Mapping review: ', numeric_span(unknown),
     ' option(s) have unconfirmed export codes.</p>\n', sep = "")
   if (nrow(a$unmapped)) report_table(a$unmapped, paste("Unmapped values requiring review:", v), "Count")
+  if (is.na(a$asset)) {
+    cat('</div>\n')
+    return(invisible(NULL))
+  }
   figure_number <<- figure_number + 1L
   cat('<figure><img src="', esc(a$asset), '" alt="', esc(paste(a$title, "bar chart; all values are in the preceding table.")),
     '"><figcaption>Figure ', figure_number, '. ', esc(v),
@@ -106,22 +110,85 @@ For categorical items, **valid** means a nonmissing value with an unambiguous ma
 
 Tables retain all options in questionnaire order, including zero counts. Unobserved codes remain unassigned unless confirmed by the exports; QSF choice IDs are not assumed to be export values. Zero counts reflect matched exports, not assumed codes. “Never”, “Prefer not to answer”, and “I do not read labels” are valid categories, with non-readers included in the denominator. Ordinal items remain separate, without means, scores, combined scales or category collapsing.
 
-Age summaries retain all finite values from a derived numerical copy. Whitespace-only entries are missing; nonblank nonnumeric/nonfinite entries, values outside the QSF range and noninteger ages are flagged without automatic removal. Quartiles use R `quantile(type = 7)`, with linear interpolation at **h = 1 + (n − 1) × p**. The denominator is the number of finite converted values. No age bands or demographic combinations are used.
+Age summaries retain all finite values from a derived numerical copy. Whitespace-only entries are missing; nonblank nonnumeric/nonfinite entries, values outside the QSF range and noninteger ages are flagged without automatic removal. Quartiles use R `quantile(type = 7)`, with linear interpolation at **h = 1 + (n − 1) × p**. The denominator is the number of finite converted values. The user-approved comparison bands are **18–30, 31–55 and 56+**, in completed years. Noninteger or under-18 values are unassigned in the band table without exclusion from numerical summaries. No demographic cross-tabulations are used.
 
 ```{r completeness, results='asis'}
 o <- report$completeness
-cat('<p>Coverage: ', numeric_span(nrow(o)), ' categorical research items; ', numeric_span(length(report$items)),
-  ' charts. Gender, education and occupation distributions are withheld; their completeness is retained.</p>', sep = "")
+cat('<p>Coverage: ', numeric_span(nrow(o)), ' categorical research items; ',
+  numeric_span(sum(!vapply(report$items, function(a) is.na(a$asset), logical(1)))),
+  ' charts. Gender, education and occupation are reported as separate marginal tables.</p>', sep = "")
 t <- data.frame(Item = o$Variable, Total = o$Total_responses, `Valid mapped` = o$Valid_mapped_responses,
   Missing = o$Missing_responses, Unmapped = o$Unmapped_nonmissing_responses,
   `Percentage denominator` = o$Percent_denominator, check.names = FALSE)
-report_table(t, "Categorical completeness. Denominators are item-specific; demographic subgroup counts are not shown.",
+report_table(t, "Categorical completeness and item-specific percentage denominators.",
   names(t)[-1])
 ```
 
 Free-text checks account for whitespace, Unicode spaces and invisible zero-width/BOM characters; no quotations or thematic coding are included. Consent is audited separately. Permissions for subsequent transcript or other analyses require review; this report does not establish blanket authorization.
 
 ## Sample characteristics
+
+```{r comparison, results='asis'}
+context <- report$context
+observed <- function(n, pct) ifelse(is.na(pct), paste0(n, " (percentage unavailable)"),
+  sprintf("%d (%.1f%%)", n, pct))
+row <- function(category, benchmark, target, n, pct, note) data.frame(
+  `Variable/category` = category, `ISTAT benchmark` = benchmark,
+  `Recruitment target` = target, `Observed pilot n (%)` = observed(n, pct),
+  `Comparability notes` = note, check.names = FALSE)
+gender <- report$items$C_gender$table
+g <- match(names(context$sex_benchmark), gender$Response_option)
+stopifnot(!anyNA(g))
+comparison <- row(paste("Sex/gender:", gender$Response_option[g]),
+  sprintf("%.2f%% *", context$sex_benchmark), as.character(context$sex_target),
+  gender$Count[g], gender$Percent_of_valid_responses[g], "S1")
+bands <- report$age_bands
+comparison <- rbind(comparison, row(paste("Age:", bands$Category),
+  sprintf("%.2f%% *", context$age_benchmark[bands$Category]),
+  as.character(context$age_target[bands$Category]), bands$Count, bands$Percent, "A1"))
+edu <- report$education_comparison
+comparison <- rbind(comparison, row(paste("Education:", edu$Category),
+  sprintf("%.1f%%", context$education_benchmark), as.character(context$education_target),
+  edu$Count, edu$Percent, "E1"))
+fish <- report$items$D_fish_freq$table
+comparison <- rbind(comparison, row(paste("Seafood:", fish$Response_option),
+  "Not supplied", "Mix; no numerical quota", fish$Count, fish$Percent_of_valid_responses, "F1"))
+report_table(comparison, "Contextual benchmarks, planned recruitment targets and observed questionnaire results.",
+  c("ISTAT benchmark", "Recruitment target", "Observed pilot n (%)"))
+cat('<p class="footnote">* ', esc(context$demographic_status), '. ',
+  esc(context$demographic_population), '. The official page supports the date and estimated status; ',
+  'the supplied adult percentages and single-year-age aggregation have not been independently reproduced.</p>', sep = "")
+cat('<p>', esc(context$statement), '</p>', sep = "")
+varying <- sum(vapply(c("C_gender", "C_education", "C_occupation"),
+  function(v) sum(report$items[[v]]$table$Count > 0) > 1, logical(1)))
+if (varying >= 2L && sum(fish$Count > 0) > 1L)
+  cat('<p>The focus group includes variation in demographic characteristics and seafood consumption.</p>')
+if (any(bands$Count == 0L)) cat('<p class="footnote">Age coverage review: no observed responses in ',
+  esc(paste(bands$Category[bands$Count == 0L], collapse = ", ")),
+  '. Variation does not mean that every planned age band is represented.</p>', sep = "")
+cat('<p class="denominator">Observed denominators: gender n = ',
+  numeric_span(report$items$C_gender$summary$Percent_denominator), '; age bands n = ',
+  numeric_span(report$age_band_summary$Valid_banded), '; education n = ',
+  numeric_span(report$items$C_education$summary$Percent_denominator), '; seafood frequency n = ',
+  numeric_span(report$items$D_fish_freq$summary$Percent_denominator),
+  '. Age-band missing = ', numeric_span(report$age_band_summary$Missing),
+  '; unassigned nonmissing = ', numeric_span(report$age_band_summary$Unassigned_nonmissing), '.</p>', sep = "")
+```
+
+**S1 — Sex/gender.** ISTAT measures registered sex; the questionnaire asks self-reported gender. The female/male recruitment targets are compared descriptively with Woman/Man selections, without treating the measures as equivalent. All questionnaire gender categories remain in the separate distribution and its denominator.
+
+**A1 — Age.** ISTAT context covers adults aged 18+ at 1 January 2026; the observed bands use the questionnaire ages. Targets are a recruitment plan, not observed counts.
+
+**E1 — Education.** ISTAT covers ages 25–64 in 2024, whereas the pilot table covers all valid responses. Its upper-secondary category includes post-secondary non-tertiary qualifications, and tertiary education includes qualifications beyond university degrees. For comparison only, the questionnaire's bachelor's and master's/higher options are combined; all four original options remain below. The recruitment targets concern no qualification below upper secondary, high-school diploma and university degree, respectively. This is an approximate alignment, not an ISCED equivalence or an age-restricted comparison.
+
+**F1 — Seafood.** The recruitment plan sought a mix of frequent and occasional consumers without a numerical quota. No national benchmark was supplied. Observed rows retain actual questionnaire categories; no frequent/occasional classification is constructed.
+
+```{r benchmark_sources, results='asis'}
+cat('<p class="footnote">Sources: <a href="', esc(context$demographic_url), '">ISTAT population by sex and age</a>; ',
+  '<a href="', esc(context$education_url), '">ISTAT education, 2024</a>; ',
+  '<a href="', esc(context$education_pdf), '">full education report</a>. ',
+  esc(context$education_status), '</p>', sep = "")
+```
 
 ```{r age, results='asis'}
 fields <- c("Total_responses", "Valid_numeric_responses", "Missing_responses", "Invalid_nonmissing_responses",
@@ -134,7 +201,11 @@ report_table(data.frame(Measure = labels, Value = vapply(fields, function(k) num
   "Age summary and conversion checks.", "Value")
 ```
 
-Gender, education and occupation subgroup counts and charts are withheld pending an agreed disclosure rule for this small pilot. This does not collapse categories or exclude participants.
+```{r demographics, results='asis'}
+for (v in c("C_gender", "C_education", "C_occupation")) item_results(v)
+```
+
+These are separate questionnaire distributions, including zero-count options, with no demographic cross-tabulations. No occupation benchmark or recruitment quota was supplied. Small marginal groups warrant disclosure review before wider circulation.
 
 ## Purchasing and dietary habits
 
@@ -170,7 +241,40 @@ cat('<div class="review"><strong>Typography.</strong> Preferred font: ', esc(rep
 
 The blue, green and light-blue palette comes from the shared EUAqua theme and represents provisional visual approximations, not verified official brand colour codes. No appropriate official logo asset was found in the analysis workspace; no replacement logo has been created and no fonts have been downloaded.
 
-Unconfirmed codes require survey/export evidence before future use. Education translations and the demographic disclosure rule require review. Correct the pilot-date metadata if the actual session differed from the schedule.
+Unconfirmed codes require survey/export evidence before future use. Education translations, exact demographic benchmark calculations and wider disclosure of small marginal groups require review. Correct the pilot-date metadata if the actual session differed from the schedule.
+
+## Consent and permissions
+
+C1–C3 are required in the verified questionnaire participation flow. C4–C5 are optional, activity-specific permissions. Below are English display translations of the verified questions; the exact Italian wording remains in the codebook and consent-definition output.
+
+```{r permissions, results='asis'}
+c <- report$consent
+defs <- report$consent_definitions
+stopifnot(identical(c$Consent_variable, defs$Consent_variable),
+  all(c$Granted + c$Declined + c$Missing + c$Unmapped == c$Total_responses))
+t <- data.frame(Item = c$Consent_variable,
+  Role = ifelse(c$Consent_variable %in% paste0("C", 1:3), "Required in QSF flow", "Optional"),
+  `Total / denominator` = c$Total_responses, Agreement = c$Granted, Refusal = c$Declined,
+  Missing = c$Missing, Unmapped = c$Unmapped, check.names = FALSE)
+report_table(t, "Aggregate consent selections. All four counts use the item's total response denominator.", names(t)[3:7])
+for (i in seq_len(nrow(defs))) {
+  cat('<p><strong>', esc(defs$Consent_variable[i]), ' — ', esc(defs$Permission[i]),
+    '.</strong> ', esc(defs$English_question[i]), '</p>', sep = "")
+}
+flagged <- c$Consent_variable[c$Review_required]
+if (length(flagged)) {
+  cat('<div class="review">Permission review flags: ', esc(paste(flagged, collapse = ", ")),
+    '. Review the item-specific refusal, missing and unmapped counts before relevant analyses.</div>', sep = "")
+} else {
+  cat('<p>No refusal, missing or unmapped selections were detected in these exported consent items.</p>')
+}
+```
+
+C1 concerns participation; C2 concerns personal-data processing for this research; C3 concerns recording and research use of image and voice. C4 specifically concerns AI facial-expression analysis under sections A/A1 of the privacy notice. C5 concerns retention and further use for future research under section B. Optional refusal is a permitted choice, not a participation failure, and does not grant that activity's permission.
+
+Agreement and refusal counts require export-confirmed mappings. Unrecognized nonmissing selections remain unmapped and require review rather than being assigned to either decision.
+
+Before transcript, recording or facial-expression analysis, review the permissions relevant to that activity alongside the referenced privacy notice, approved protocol and applicable requirements. Agreement to one activity does not authorize another, and questionnaire selections alone do not establish every ethical, legal or operational requirement. No individual consent records are displayed and no participants are automatically excluded.
 
 ## Reproducibility
 

@@ -15,8 +15,9 @@ The renderer executes `scripts/03_describe_qualtrics.R` in an isolated environme
 then supplies only permitted aggregates to `pilot_report.Rmd`. It verifies the
 frequency tables and age summary against the existing CSV exports. It does not
 implement another response-processing pipeline. The original analysis scripts and
-fish-consumption chart are unchanged. Consent results and individual records never
-enter the report template; demographic distributions remain withheld.
+fish-consumption chart are unchanged. Only user-authorized marginal demographic
+tables and a separate aggregate consent section enter the report; no individual
+records or demographic combinations are supplied.
 
 Open `outputs/pilot-ita-30092026/report/EUAqua_pilot_report.html` in a browser.
 Keep the entire report folder together when moving the HTML: charts and CSS are
@@ -37,8 +38,24 @@ questionnaire completion dates. Correct the metadata if the actual session diffe
 All numerical findings are generated dynamically. Dates and questionnaire wording
 are study metadata, not analytical findings. Palette and font selection come from
 `scripts/euaqua_plot_theme.R`; colours are provisional approximations. Education
-translations and the demographic disclosure rule remain flagged for review. No
+translations and wider disclosure of small marginal groups remain flagged for review. No
 appropriate official logo asset was found in this workspace.
+
+The user authorized comparison bands 18-30, 31-55 and 56+, plus separate gender,
+education and occupation distributions. Original questionnaire categories remain
+intact. Only the benchmark comparison combines the two university-degree options.
+Observed counts are calculated in the descriptive script, independently of targets.
+`pilot_context.R` contains public supplied benchmarks, planned quotas, source URLs
+and verification status; it contains no observed pilot results. Education figures
+are supported by ISTAT; the supplied adult sex/age calculations remain pending
+independent reproduction. ISTAT sex and questionnaire gender differ, and education
+reference populations and classifications differ. No occupation benchmark or
+seafood frequency classification is invented.
+
+Consent counts use total item responses as denominator and remain separate from
+substantive findings. Required C1-C3 and optional C4-C5 definitions come from the
+reviewed QSF, with separate English display translations. Relevant permissions and
+the referenced materials still require review before subsequent analyses.
 
 Verification status: the HTML has rendered successfully and its numerical fields
 have passed automated checks. All existing chart images have been inspected.
