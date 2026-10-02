@@ -65,3 +65,53 @@ Review safely in RStudio with `View(qualtrics_preparation$codebook$questions)` a
 `mapping_issues` tables provide links, rule context, and review flags. Local files
 are named `codebook_<table>.csv`; raw QSF metadata is not published to GitHub.
 Do not print or open the full imported response objects for a shared demonstration.
+
+## First descriptive analysis
+
+Run `source("scripts/03_describe_qualtrics.R")` from the RStudio project root.
+It sources preparation in a separate environment and applies the shared theme
+from `euaqua_plot_theme.R`. Required packages are `readxl`, `jsonlite`, `xml2`,
+`ggplot2`, `systemfonts`, and `ragg`. If needed, install them with
+`install.packages(c("readxl", "jsonlite", "xml2", "ggplot2", "systemfonts", "ragg"))`.
+
+The analysis describes `D_fish_freq` for this pilot sample. It retains all five
+QSF options, including zero counts, in questionnaire order. English display labels
+are stored separately from the original Italian definitions. The translations
+have no identified uncertainty. The ordering comes from QSF display positions,
+not sorting by exported codes or arranging responses by frequency.
+
+Valid responses have a nonblank value with an unambiguous export-confirmed mapping.
+Only NA and empty strings are missing; whitespace is not trimmed. Unmapped
+nonmissing values are reported separately. No participant rows are removed.
+Percentages are `100 * option count / valid mapped responses`; the denominator is
+shown in the summary and chart caption. If there are no valid responses, percentages
+are undefined. Unobserved options are included with zero counts without assigning
+unconfirmed numeric codes. In particular, an unconfirmed QSF choice ID is never
+treated as an exported code. Unexpected text in unmapped values is withheld;
+unknown numeric codes are reported only as aggregate code counts.
+
+Counts are checked independently against the Excel Labels export. Internal checks
+verify the total/valid/missing/unmapped partition and percentage sum. Existing
+imported objects and original files are preserved. Only aggregate outputs and
+definition tables are saved; no participant-level dataset is written.
+
+Outputs are in `outputs/pilot-ita-30092026/descriptive/D_fish_freq/`, ignored by Git:
+
+- `frequency_table.csv`: English response options, counts, and percentages.
+- `response_summary.csv`: total, valid, missing, unmapped, and denominator counts.
+- `option_definitions.csv`: questionnaire order, original Italian labels, English
+  display labels, separately recorded QSF IDs and confirmed codes, and review status.
+- `unmapped_values.csv`: aggregate unmatched codes, with nonnumeric values withheld.
+- `font_report.csv`: font availability and actual regular/bold font resolution.
+- `D_fish_freq_bar_chart.png`: blue bars, all options, and an explicit denominator.
+- `analysis_notes.txt`: definitions and limits for interpreting this pilot sample.
+
+The script exports PNG with ragg at 180 dpi and resolves fonts with systemfonts.
+Inspect the rendered chart after rerunning; future font installations may change
+the resolved family. Palette and font policy are documented in `AGENTS.md`.
+Generated files at these paths are replaced on rerun.
+
+In RStudio, use `View(euaqua_descriptive_analysis$frequency_table)` to review the
+aggregate table. Run `print(euaqua_descriptive_analysis$chart)` to show the chart in
+the **Plots** pane, or open the exported PNG from **Files**. The source data and
+codebook keep their original wording and variable names.
