@@ -1,0 +1,183 @@
+---
+title: ""
+output:
+  html_document:
+    theme: null
+    self_contained: false
+    mathjax: null
+    highlight: null
+    toc: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+esc <- function(x) as.character(htmltools::htmlEscape(as.character(x)))
+num <- function(x) ifelse(is.na(x), "Not available", format(x, trim = TRUE, scientific = FALSE))
+numeric_span <- function(x) {
+  value <- esc(num(x))
+  paste0('<span data-expected="', value, '">', value, '</span>')
+}
+table_number <- 0L
+figure_number <- 0L
+report_table <- function(data, caption, numeric_columns = character()) {
+  table_number <<- table_number + 1L
+  headers <- paste0("<th scope='col'>", esc(names(data)), "</th>", collapse = "")
+  rows <- vapply(seq_len(nrow(data)), function(i) {
+    cells <- vapply(names(data), function(k) {
+      value <- esc(data[[k]][i])
+      if (k %in% numeric_columns) paste0('<td class="numeric" data-expected="', value, '">', value, '</td>')
+      else paste0("<td>", value, "</td>")
+    }, "")
+    paste0("<tr>", paste(cells, collapse = ""), "</tr>")
+  }, "")
+  cat(paste0("<table><caption>Table ", table_number, ". ", esc(caption),
+    "</caption><thead><tr>", headers, "</tr></thead><tbody>", paste(rows, collapse = ""), "</tbody></table>\n"))
+}
+mode_sentence <- function(v) {
+  a <- report$items[[v]]
+  if (a$summary$Percent_denominator == 0L) return("No mapped valid responses were available.")
+  t <- a$table
+  top <- which(t$Count == max(t$Count))
+  labels <- paste0("‘", esc(t$Response_option[top]), "’", collapse = " and ")
+  paste0(if (length(top) > 1) "The joint most frequent categories were " else "The most frequent category was ",
+    labels, " (", numeric_span(t$Count[top[1]]), " responses per category; ",
+    numeric_span(sprintf("%.1f", t$Percent_of_valid_responses[top[1]])),
+    "% each, among ", numeric_span(a$summary$Percent_denominator), " valid responses).")
+}
+item_results <- function(v) {
+  a <- report$items[[v]]; s <- a$summary
+  cat('<div class="item"><h3>', esc(a$title), '</h3><p>', esc(a$question), '</p>\n', sep = "")
+  cat('<p class="denominator">Total: ', numeric_span(s$Total_responses),
+    '; valid mapped: ', numeric_span(s$Valid_mapped_responses), '; missing: ', numeric_span(s$Missing_responses),
+    '; unmapped nonmissing: ', numeric_span(s$Unmapped_nonmissing_responses),
+    '. Percentage denominator: ', numeric_span(s$Percent_denominator), ' valid mapped responses.</p>\n', sep = "")
+  t <- data.frame(Order = a$table$Questionnaire_order, `Response option` = a$table$Response_option,
+    Count = a$table$Count, `Valid responses (%)` = ifelse(is.na(a$table$Percent_of_valid_responses),
+      "Not available", sprintf("%.1f", a$table$Percent_of_valid_responses)), check.names = FALSE)
+  report_table(t, paste0(a$title, " (", v, "). Options in questionnaire order."),
+    c("Order", "Count", "Valid responses (%)"))
+  cat('<p>', mode_sentence(v), '</p>\n', sep = "")
+  unknown <- sum(is.na(a$definitions$Confirmed_exported_code))
+  cat('<p class="footnote">Options without a confirmed exported code: ', numeric_span(unknown),
+    '. Their numeric mappings remain unassigned; zero counts reflect the matched exports, not an assumed code.</p>\n', sep = "")
+  if (nrow(a$unmapped)) report_table(a$unmapped, paste("Unmapped values requiring review:", v), "Count")
+  figure_number <<- figure_number + 1L
+  cat('<figure><img src="', esc(a$asset), '" alt="', esc(paste(a$title, "bar chart; all values are in the preceding table.")),
+    '"><figcaption>Figure ', figure_number, '. ', esc(a$title),
+    '. Counts and valid-response percentages; denominator n = ', numeric_span(s$Percent_denominator),
+    '.</figcaption></figure></div>\n', sep = "")
+}
+age <- report$age
+```
+
+```{r title, results='asis'}
+cat('<div class="title-card"><div class="eyebrow">EUAqua · Work Package 4</div>',
+  '<h1>Italian pilot<br>Preliminary questionnaire report</h1>',
+  '<p>Descriptive evidence from the pilot sample</p><div class="metadata">',
+  '<div><strong>Pilot date</strong>', esc(format(report$pilot_date, "%d %B %Y")), '</div>',
+  '<div><strong>Report date</strong>', esc(format(report$report_date, "%d %B %Y")), '</div>',
+  '<div><strong>Sample size</strong>', numeric_span(report$sample_size), ' questionnaire responses</div>',
+  '</div></div>', sep = "")
+```
+
+## Overview
+
+This report describes the preliminary questionnaire responses in the Italian EUAqua pilot. Distributions refer only to this pilot sample.
+
+```{r overview, results='asis'}
+for (v in c("D_fish_freq", "D_diet_type", "E_label_trust", "E_label_format", "E_oa_awareness")) {
+  cat('<p><strong>', esc(report$items[[v]]$title), '.</strong> ', mode_sentence(v), '</p>\n', sep = "")
+}
+cat('<p><strong>Age.</strong> Median ', numeric_span(age$Median_years), ' years; first and third quartiles ',
+  numeric_span(age$First_quartile_years), ' and ', numeric_span(age$Third_quartile_years),
+  ' years; range ', numeric_span(age$Minimum_years), '–', numeric_span(age$Maximum_years),
+  ' years, among ', numeric_span(age$Numerical_summary_denominator), ' finite numerical responses.</p>', sep = "")
+```
+
+## Methods and completeness
+
+The report reuses the aggregate objects and exported charts produced by `scripts/03_describe_qualtrics.R`. That script runs the existing import and preparation workflow, matches Values and Labels exports by ResponseId rather than row order, checks PID consistency, and uses the QSF to retain questionnaire definitions and response order. Identifiers never enter the report template. No participants are excluded and the original files remain unchanged.
+
+The pilot date is taken from the saved **EUAQUA WP4 executive Gantt**, whose pilot note states “Pilot scheduled for 30 September 2026”. The date agrees with the pilot archive designation. This is the project-scheduled session date; preliminary questionnaire completion timestamps are a different measure.
+
+For categorical items, **valid** means a nonmissing value with an unambiguous mapping confirmed against the matched exports. **Missing** means NA or an empty string; other categorical values are not silently trimmed or recoded. Unmapped nonmissing values are counted separately. Each percentage is the category count divided by that item's valid mapped responses, multiplied by 100. Values are displayed to one decimal place; rounding may affect displayed sums.
+
+All questionnaire options are retained, including zero counts. Unobserved option codes are left unassigned where the exports cannot confirm them: QSF choice IDs are not assumed to equal numeric export values. “Never”, “Prefer not to answer”, and “I do not read labels” are explicit responses. Non-readers remain in the valid denominator. Ordinal items are described separately, without means, scores, combined scales or category collapsing.
+
+```{r completeness, results='asis'}
+o <- report$completeness
+cat('<p>Coverage: ', numeric_span(nrow(o)), ' categorical research items; ', numeric_span(length(report$items)),
+  ' charts. Gender, education and occupation distributions are withheld; their completeness is retained.</p>', sep = "")
+t <- data.frame(Item = o$Variable, Total = o$Total_responses, `Valid mapped` = o$Valid_mapped_responses,
+  Missing = o$Missing_responses, Unmapped = o$Unmapped_nonmissing_responses,
+  `Percentage denominator` = o$Percent_denominator, check.names = FALSE)
+report_table(t, "Categorical completeness. Denominators are item-specific; demographic subgroup counts are not shown.",
+  names(t)[-1])
+```
+
+Free-text fields are checked only for blankness, accounting for whitespace, Unicode spaces and invisible zero-width/BOM characters. No response text or thematic coding is included. Consent eligibility and optional permissions are audited separately from substantive results. Permission checks must be reviewed for the intended subsequent transcript or other analysis; this report does not establish blanket authorization.
+
+## Sample characteristics
+
+Age is summarised from a derived numerical copy. All finite numerical values are retained. Nonblank nonnumeric or nonfinite entries are counted separately; values outside the QSF validation range and noninteger ages are flagged without automatic removal. No age bands or demographic combinations are used.
+
+```{r age, results='asis'}
+fields <- c("Total_responses", "Valid_numeric_responses", "Missing_responses", "Invalid_nonmissing_responses",
+  "Median_years", "First_quartile_years", "Third_quartile_years", "Minimum_years", "Maximum_years",
+  "Outside_QSF_range", "Noninteger_values", "Numerical_summary_denominator")
+labels <- c("Total responses", "Valid finite numerical responses", "Missing responses", "Invalid nonmissing responses",
+  "Median (years)", "First quartile (years)", "Third quartile (years)", "Minimum (years)", "Maximum (years)",
+  "Outside QSF validation range", "Noninteger values", "Numerical summary denominator")
+report_table(data.frame(Measure = labels, Value = vapply(fields, function(k) num(age[[k]]), "")),
+  "Age summary and conversion checks.", "Value")
+```
+
+Quartiles use R `quantile(type = 7)`: linear interpolation with **h = 1 + (n − 1) × p**. Missing age entries include whitespace-only values. The numerical summary denominator is the count of finite converted values.
+
+Gender, education and occupation subgroup counts and charts are withheld pending an agreed disclosure rule for this small pilot. This does not collapse categories or exclude participants.
+
+## Purchasing and dietary habits
+
+Health and nutritional quality, environmental sustainability, and price attention are analysed separately. Their response categories are not converted into numerical scores.
+
+```{r purchasing, results='asis'}
+vars <- report$completeness$Variable[report$completeness$Section == "purchasing_and_dietary_habits"]
+for (v in vars) item_results(v)
+```
+
+## Label and sustainability perceptions
+
+Label trust, comprehension and information overload remain separate items. The non-reader response is shown explicitly, including when its count is zero; analyses are not restricted to label readers.
+
+```{r perceptions, results='asis'}
+vars <- report$completeness$Variable[report$completeness$Section == "label_and_sustainability_perceptions"]
+for (v in vars) item_results(v)
+```
+
+## Limitations and unresolved issues
+
+This is a small pilot sample. Its descriptive distributions cannot establish population prevalence, causal relationships or associations between variables. No demographic cross-tabulations, free-text quotations, combined scales or participant exclusions are included. Age extrema are aggregate summaries approved for this step; they should still be reviewed before wider dissemination of a small-sample report.
+
+The education display labels below are **provisional descriptive translations**. They do not assert international qualification equivalence. In particular, the final Italian option combines *laurea magistrale o superiore* with the parenthetical *Master, PhD*; the display label must be reviewed if used beyond this report. Original Italian definitions remain intact in the codebook.
+
+```{r translations, results='asis'}
+d <- report$education
+report_table(data.frame(`Italian questionnaire option` = d$Original_option,
+  `Provisional English display label` = d$English_display_label, check.names = FALSE),
+  "Education definitions for translation review; no participant responses or subgroup counts.")
+cat('<div class="review"><strong>Typography.</strong> Preferred font: ', esc(report$font$Preferred_font),
+  '; installed: ', esc(report$font$Preferred_font_available), '. First fallback: ', esc(report$font$First_fallback),
+  '; installed: ', esc(report$font$First_fallback_available), '. The chart renderer resolved regular text to ',
+  esc(report$font$Resolved_regular_family), ' and bold text to ', esc(report$font$Resolved_bold_family),
+  '. The same regular family is requested for this HTML report. Browser rendering should be rechecked on another computer.</div>', sep = "")
+```
+
+The blue, green and light-blue palette comes from the shared EUAqua theme and represents provisional visual approximations, not verified official brand colour codes. No appropriate official logo asset was found in the analysis workspace; no replacement logo has been created and no fonts have been downloaded.
+
+The unobserved options' numerical codes remain unconfirmed wherever the exports provide no mapping evidence. Confirming them will require appropriate survey/export evidence before using those codes in future data. The displayed zero counts do not assign a numeric mapping. Education translations and the demographic disclosure rule require review. The scheduled pilot date provenance is documented above; any difference between scheduled and actual session dates should be corrected in report metadata.
+
+## Reproducibility
+
+From the project root in RStudio, run `source("reports/render_pilot_report.R")`. The renderer reruns the existing descriptive script, checks its frequency tables and age summary against exported CSVs, copies the existing charts into the report asset folder, then renders this report. Numerical findings are generated from the aggregate objects, never entered manually into the report source.
+
+Keep the generated HTML together with its `assets/` and supporting library folders. The output folder also contains `verification.txt` and `session_info.txt` documenting numerical checks and the R environment. Generated files remain under the ignored `outputs/` folder. Review the report in a browser and use its print preview for a paper or PDF version.
