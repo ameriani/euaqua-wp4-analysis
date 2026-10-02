@@ -31,6 +31,42 @@ euaqua_font_report <- function() {
   )
 }
 
+# Reusable count chart with all options in questionnaire order, including zeros.
+# Labels can be wrapped for long options; underlying English labels stay intact.
+euaqua_frequency_plot <- function(frequency_table, summary, title, subtitle,
+                                 font_family = NULL, wrap_width = 48L) {
+  if (is.null(font_family)) font_family <- euaqua_font_report()$Resolved_regular_family
+  plot_data <- frequency_table
+  plot_data$Annotation <- if (summary$Valid_mapped_responses > 0L)
+    sprintf("%d (%.1f%%)", plot_data$Count, plot_data$Percent_of_valid_responses) else
+      sprintf("%d (n/a)", plot_data$Count)
+  wrap <- function(x) vapply(x, function(label) paste(strwrap(label, width = wrap_width), collapse = "\n"), "")
+  caption <- sprintf(
+    paste0("Pilot sample only. Percentages use valid mapped responses (n = %d).\n",
+           "Total = %d; valid = %d; missing = %d; unmapped = %d."),
+    summary$Percent_denominator, summary$Total_responses, summary$Valid_mapped_responses,
+    summary$Missing_responses, summary$Unmapped_nonmissing_responses
+  )
+  ggplot2::ggplot(plot_data, ggplot2::aes(x = Count, y = Response_option)) +
+    ggplot2::geom_col(fill = euaqua_palette[["blue"]], width = 0.65, show.legend = FALSE) +
+    ggplot2::geom_text(ggplot2::aes(label = Annotation), hjust = -0.12,
+      family = font_family, colour = euaqua_neutrals[["text"]], size = 3.8, show.legend = FALSE) +
+    ggplot2::scale_y_discrete(limits = rev(plot_data$Response_option), labels = wrap, drop = FALSE) +
+    ggplot2::scale_x_continuous(
+      breaks = seq.int(0L, max(1L, max(plot_data$Count))),
+      limits = c(0, max(1, max(plot_data$Count)) * 1.4), expand = c(0, 0)
+    ) +
+    ggplot2::labs(title = title, subtitle = subtitle,
+      x = "Responses (count)", y = NULL, caption = caption) +
+    theme_euaqua(base_family = font_family) + ggplot2::theme(legend.position = "none")
+}
+
+euaqua_export_plot <- function(chart, path, width = 11, height = 6.5) {
+  if (!requireNamespace("ragg", quietly = TRUE)) stop("Package ragg is required for PNG export.")
+  ggplot2::ggsave(path, chart, device = ragg::agg_png, width = width, height = height,
+    units = "in", dpi = 180, bg = euaqua_neutrals[["background"]])
+}
+
 theme_euaqua <- function(base_size = 12, base_family = NULL) {
   if (!requireNamespace("ggplot2", quietly = TRUE)) stop("Package ggplot2 is required.")
   if (is.null(base_family)) base_family <- euaqua_font_report()$Resolved_regular_family
